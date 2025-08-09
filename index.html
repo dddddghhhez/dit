@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>급식 정보 알리미</title>
+    <style>
+        /* 기본 스타일 설정 */
+        body {
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+        }
+
+        /* 전체를 감싸는 컨테이너 */
+        .container {
+            text-align: center;
+            padding: 40px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 500px;
+        }
+
+        /* 제목 스타일 */
+        h1 {
+            color: #1c1e21;
+            margin-bottom: 25px;
+        }
+
+        /* 날짜 선택 및 버튼 영역 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        /* 날짜 입력 필드 */
+        input[type="date"] {
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #dddfe2;
+            font-size: 16px;
+            outline-color: #007bff;
+        }
+
+        /* 정보 조회 버튼 */
+        button {
+            padding: 10px 22px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        /* 버튼 호버 효과 */
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* 급식 정보가 표시될 영역 */
+        #meal-info {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            min-height: 120px;
+            text-align: left;
+            line-height: 1.9;
+            background-color: #f9f9f9;
+        }
+
+        /* 급식 메뉴 목록 스타일 */
+        #meal-info ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* 각 식사(조식, 중식, 석식) 항목 */
+        #meal-info li {
+            margin-bottom: 15px;
+        }
+
+        #meal-info li:last-child {
+            margin-bottom: 0;
+        }
+
+        /* 식사 종류(조식, 중식, 석식) 이름 스타일 */
+        #meal-info strong {
+            display: inline-block;
+            margin-bottom: 8px;
+            color: #0056b3;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>오늘의 급식</h1>
+        <div class="controls">
+            <input type="date" id="date-picker">
+            <button id="get-meal-btn">조회</button>
+        </div>
+        <div id="meal-info">
+            <p>날짜를 선택한 후 '조회' 버튼을 누르세요.</p>
+        </div>
+    </div>
+
+    <script>
+        // 페이지가 로드되면 오늘 날짜를 YYYY-MM-DD 형식으로 날짜 선택기에 기본값으로 설정
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('date-picker').value = new Date().toISOString().slice(0, 10);
+        });
+
+        // '조회' 버튼 클릭 이벤트 처리
+        document.getElementById('get-meal-btn').addEventListener('click', () => {
+            const selectedDate = document.getElementById('date-picker').value;
+            if (!selectedDate) {
+                alert('날짜를 선택해주세요.');
+                return;
+            }
+
+            // 날짜 형식을 'YYYY-MM-DD'에서 'YYYYMMDD'로 변경
+            const formattedDate = selectedDate.replace(/-/g, '');
+            const mealInfoDiv = document.getElementById('meal-info');
+
+            // API 요청에 필요한 파라미터 설정
+            const ATPT_OFCDC_SC_CODE = 'J10'; // 전라남도교육청 코드
+            const SD_SCHUL_CODE = '7531100';    // 학교 코드 (예시)
+
+            // 나이스 교육정보 개방 포털 API URL 생성 [11]
+            const apiUrl = `https://open.neis.go.kr/hub/mealServiceDietInfo?ATPT_OFCDC_SC_CODE=${ATPT_OFCDC_SC_CODE}&SD_SCHUL_CODE=${SD_SCHUL_CODE}&MLSV_YMD=${formattedDate}`;
+            
+            mealInfoDiv.innerHTML = '<p>급식 정보를 불러오는 중입니다...</p>';
+
+            // fetch API를 사용하여 XML 데이터 비동기 요청 [1, 8]
+            fetch(apiUrl)
+                .then(response => {
+                    // 네트워크 응답이 성공적인지 확인
+                    if (!response.ok) {
+                        throw new Error('네트워크에 문제가 발생했습니다. 다시 시도해주세요.');
+                    }
+                    return response.text();
+                })
+                .then(str => {
+                    // DOMParser를 사용하여 받은 텍스트를 XML 문서로 파싱 [3, 7]
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(str, "text/xml");
+
+                    const result = xmlDoc.getElementsByTagName('RESULT')[0];
+                    if (result) {
+                        const resultCode = result.getElementsByTagName('CODE')[0].textContent;
+                        // 'INFO-200' 코드는 데이터가 없음을 의미 [11]
+                        if (resultCode === 'INFO-200') {
+                            mealInfoDiv.innerHTML = '<p>해당 날짜의 급식 정보가 없습니다.</p>';
+                            return;
+                        }
+                    }
+
+                    const mealList = xmlDoc.getElementsByTagName('row');
+                    if (mealList.length > 0) {
+                        let mealContent = '<ul>';
+                        // 받아온 급식 데이터(조식, 중식, 석식 등)를 순회하며 HTML로 가공
+                        for (let i = 0; i < mealList.length; i++) {
+                            const mealName = mealList[i].getElementsByTagName('MMEAL_SC_NM')[0].textContent;
+                            // 메뉴 목록의 <br/> 태그를 줄바꿈 문자로 변경하여 가독성 향상
+                            const dishInfo = mealList[i].getElementsByTagName('DDISH_SNDDINFO')[0].textContent.replace(/<br\s*\/?>/gi, '\n');
+                            mealContent += `<li><strong>[${mealName}]</strong><br>${dishInfo.replace(/\n/g, '<br>')}</li>`;
+                        }
+                        mealContent += '</ul>';
+                        mealInfoDiv.innerHTML = mealContent;
+                    } else {
+                        // mealList가 비어있는 경우 (RESULT 코드가 없는 다른 오류 상황 대비)
+                        mealInfoDiv.innerHTML = '<p>급식 정보를 불러오지 못했습니다.</p>';
+                    }
+                })
+                .catch(error => {
+                    // fetch 과정에서 오류 발생 시 처리
+                    console.error('급식 정보를 가져오는 중 오류 발생:', error);
+                    mealInfoDiv.innerHTML = `<p>오류가 발생했습니다: ${error.message}</p>`;
+                });
+        });
+    </script>
+
+</body>
+</html>
